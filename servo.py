@@ -15,10 +15,10 @@ p.ChangeDutyCycle(0)
 try:
   while True:
     time.sleep(1)
-    p.ChangeDutyCycle(5)
-    time.sleep(0.8)
+    p.ChangeDutyCycle(6.55)
+    time.sleep(1.3)
     p.ChangeDutyCycle(12.5)
-    time.sleep(1)
+    time.sleep(2)
     p.ChangeDutyCycle(0)
 except KeyboardInterrupt:
   p.stop()
