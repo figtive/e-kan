@@ -22,16 +22,20 @@ SERVO_RESTING = 12.5
 SERVO_MAX = 6.55
 
 root = None
-water_temperature = None
-ambient_temperature = None
-ambient_humidity = None
-ap_client = None
-servo = None
+# water_temperature = None
+# ambient_temperature = None
+# ambient_humidity = None
+# ap_client = None
+# servo = None
 
-water_temperature_label = None
-ambient_temperature_label = None
-ambient_humidity_label = None
-date_time_label = None
+# water_temperature_label = None
+# ambient_temperature_label = None
+# ambient_humidity_label = None
+# date_time_label = None
+
+labels = {}
+text_vars = {}
+buttons = {}
 
 pump_state = False
 # light_state = False
@@ -55,50 +59,6 @@ def setup_gpio():
     GPIO.setup(SERVO_PIN, GPIO.OUT)
 
 
-def setup_lcd(root):
-    global ambient_temperature, ambient_humidity, water_temperature, water_temperature_label, date_time_label, ap_client
-
-    root.attributes("-fullscreen", True)
-    root.bind("<1>", root.quit())
-    root.configure(bg="black")
-
-    title_label = Label(root, fg="white", bg="red", text="E-Kan", font=("Futura", 25, "bold italic"))
-    title_label.place(x=2, y=0)
-
-    water_temperature = StringVar()
-    water_temperature.set("00.0 °C")
-    water_temperature_label = Label(root, fg="white", bg="black", textvariable=water_temperature, font=("Helvetica", 20))
-    water_temperature_label.place(x=2, y=50)
-
-    date_time_label = Label(root, text=f"{datetime.datetime.now():%d/%m %H:%M}", fg="white", bg="black", font=("helvetica", 12))
-    date_time_label.place(x=2, y=80)
-
-    ap_client = StringVar()
-    ap_client.set("0")
-    ap_client_label = Label(root, fg="white", bg="black", textvariable=ap_client, font=("Helvetica", 20))
-    ap_client_label.place(x=2, y=100)
-
-    reboot_button = Button(root, text="Reboot", command=reboot)
-    reboot_button.place(x=2, y=130)
-
-    pump_button = Button(root, text="Toggle Pump", command=toggle_pump)
-    pump_button.place(x=2, y=160)
-
-    # light_button = Button(root, text="Toggle Light", command=toggle_light)
-    # light_button.place(x=2, y=200)
-
-    ambient_humidity = StringVar()
-    ambient_humidity_label = Label(root, fg="white", bg="black", textvariable=ambient_humidity, font=("Helvetica", 20))
-    ambient_humidity_label.place(x=2, y=200)
-
-    ambient_temperature = StringVar()
-    ambient_temperature_label = Label(root, fg="white", bg="black", textvariable=ambient_temperature, font=("Helvetica", 20))
-    ambient_temperature_label.place(x=2, y=230)
-
-    feed_button = Button(root, text="Feed", command=feed)
-    feed_button.place(x=2, y=260)
-
-
 def setup_servo():
     global servo
 
@@ -116,23 +76,21 @@ def sensor_loop():
     ambient_humidity_value = get_ambient_humidity()
     client_count = get_ap_client_count()
 
-    date_time_label.configure(text=f"{datetime.datetime.now():%d/%m %H:%M}")
+    text_vars["date_time"].set(f"{datetime.datetime.now():%d/%m %H:%M}")
 
-    ap_client.set(client_count)
+    text_vars["ap_client"].set(client_count)
 
-    water_temperature.set("%.1f" % water_temperature_value + " °C")
-    label_color(water_temperature_label, water_temperature_value, 30, 24)
+    text_vars["water_temp"].set("%.1f" % water_temperature_value + " °C")
+    label_color(labels["water_temp"], water_temperature_value, 30, 24)
 
-    if light_value:
-        root.configure(bg="black")
-        set_light(False)
-    else:
-        root.configure(bg="white")
-        set_light()
+    set_theme(light_value)
+    set_light(light_value)
 
-    ambient_humidity.set("%.1f" % ambient_temperature_value + " °C")
+    text_vars["ambient_temp"].set("%.1f" % ambient_temperature_value + " °C")
+    label_color(labels["ambient_temp"], ambient_temperature_value, 30, 24)
 
-    ambient_temperature.set("%.1f" % ambient_temperature_value + " hum")
+    text_vars["ambient_hum"].set("%.1f" % ambient_humidity_value + " hum")
+    label_color(labels["ambient_temp"], ambient_humidity_value, 30, 24)
 
     root.after(500, sensor_loop)
 
@@ -152,7 +110,7 @@ def get_ap_client_count():
 
 def get_water_temperature():
     value = os.popen('cat /sys/bus/w1/devices/%s/w1_slave | tail -n1 | awk \'{print $NF}\' | sed s/t=//' % WATER_TEMPERATURE_SENSOR_ID).read()
-    return int(value) / 1000
+    return float(value) / 1000
 
 
 def get_ambient_temperature():
@@ -189,8 +147,8 @@ def toggle_pump():
 #     GPIO.output(LIGHT_RELAY_PIN, light_state)
 
 
-def set_light(value=True):
-    GPIO.output(LIGHT_RELAY_PIN, value)
+def set_light(value):
+    GPIO.output(LIGHT_RELAY_PIN, 0 if value else 1)
 
 
 def feed():
@@ -206,7 +164,62 @@ def signal_handler(signal, frame):
     sys.exit(0)
 
 
+def setup_lcd(root):
+    global ambient_temperature, ambient_humidity, water_temperature, water_temperature_label, date_time_label, ap_client
+
+    root.attributes("-fullscreen", True)
+    root.bind("<1>", root.quit())
+    root.configure(bg="black")
+
+    labels["title"] = Label(root, fg="white", bg="black", text="E-Kan", font=("Futura", 25, "bold italic"))
+    labels["title"].place(x=2, y=0)
+
+    text_vars["water_temp"] = StringVar()
+    text_vars["water_temp"].set("00.0 °C")
+    labels["water_temp"] = Label(root, fg="white", bg="black", textvariable=text_vars["water_temp"], font=("Helvetica", 20))
+    labels["water_temp"].place(x=2, y=50)
+
+    text_vars["date_time"] = StringVar()
+    text_vars["date_time"].set("dd/mm 00:00")
+    labels["date_time"] = Label(root, textvariable=text_vars["date_time"], fg="white", bg="black", font=("helvetica", 12))
+    labels["date_time"].place(x=2, y=80)
+
+    text_vars["ap_client"] = StringVar()
+    text_vars["ap_client"].set("0")
+    labels["ap_client"] = Label(root, fg="white", bg="black", textvariable=text_vars["ap_client"], font=("Helvetica", 20))
+    labels["ap_client"].place(x=2, y=100)
+
+    buttons["reboot"] = Button(root, text="Reboot", command=reboot)
+    buttons["reboot"].place(x=2, y=130)
+
+    buttons["pump"] = Button(root, text="Toggle Pump", command=toggle_pump)
+    buttons["pump"].place(x=2, y=160)
+
+    # light_button = Button(root, text="Toggle Light", command=toggle_light)
+    # light_button.place(x=2, y=200)
+
+    text_vars["ambient_hum"] = StringVar()
+    text_vars["ambient_hum"].set("00.0 hum")
+    labels["ambient_hum"] = Label(root, fg="white", bg="black", textvariable=text_vars["ambient_hum"], font=("Helvetica", 20))
+    labels["ambient_hum"].place(x=2, y=200)
+
+    text_vars["ambient_temp"] = StringVar()
+    text_vars["ambient_temp"].set("00.0 °C")
+    labels["ambient_temp"] = Label(root, fg="white", bg="black", textvariable=text_vars["ambient_temp"], font=("Helvetica", 20))
+    labels["ambient_temp"].place(x=2, y=230)
+
+    buttons["feed"] = Button(root, text="Feed", command=feed)
+    buttons["feed"].place(x=2, y=260)
+
+
+def set_theme(white):
+    bg = "white" if not white else "black"
+    fg = "white" if white else "black"
+    for label in labels:
+        labels[label].configure(bg=bg, fg=fg)
+    root.configure(bg=bg)
+
+
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     main()
- 
