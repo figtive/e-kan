@@ -20,25 +20,17 @@ PUMP_RELAY_PIN = 21
 SERVO_PIN = 14
 SERVO_RESTING = 12.5
 SERVO_MAX = 6.55
+LCD_WIDTH = 240
+LCD_HEIGHT = 360
 
 root = None
-# water_temperature = None
-# ambient_temperature = None
-# ambient_humidity = None
-# ap_client = None
-# servo = None
-
-# water_temperature_label = None
-# ambient_temperature_label = None
-# ambient_humidity_label = None
-# date_time_label = None
+canvas = None
 
 labels = {}
 text_vars = {}
 buttons = {}
 
 pump_state = False
-# light_state = False
 
 def main():
     global root
@@ -141,12 +133,6 @@ def toggle_pump():
     GPIO.output(PUMP_RELAY_PIN, pump_state)
 
 
-# def toggle_light():
-#     global light_state
-#     light_state = not light_state
-#     GPIO.output(LIGHT_RELAY_PIN, light_state)
-
-
 def set_light(value):
     GPIO.output(LIGHT_RELAY_PIN, 0 if value else 1)
 
@@ -165,11 +151,14 @@ def signal_handler(signal, frame):
 
 
 def setup_lcd(root):
-    global ambient_temperature, ambient_humidity, water_temperature, water_temperature_label, date_time_label, ap_client
+    global ambient_temperature, ambient_humidity, water_temperature, water_temperature_label, date_time_label, ap_client, canvas
 
     root.attributes("-fullscreen", True)
     root.bind("<1>", root.quit())
     root.configure(bg="black")
+
+    canvas = tk.Canvas(root, width=LCD_WIDTH, height=LCD_HEIGHT, bg="black")
+    canvas.place(x=0, y=0)
 
     labels["title"] = Label(root, fg="white", bg="black", text="E-Kan", font=("Futura", 25, "bold italic"))
     labels["title"].place(x=2, y=0)
@@ -195,9 +184,6 @@ def setup_lcd(root):
     buttons["pump"] = Button(root, text="Toggle Pump", command=toggle_pump)
     buttons["pump"].place(x=2, y=160)
 
-    # light_button = Button(root, text="Toggle Light", command=toggle_light)
-    # light_button.place(x=2, y=200)
-
     text_vars["ambient_hum"] = StringVar()
     text_vars["ambient_hum"].set("00.0 hum")
     labels["ambient_hum"] = Label(root, fg="white", bg="black", textvariable=text_vars["ambient_hum"], font=("Helvetica", 20))
@@ -216,7 +202,10 @@ def set_theme(white):
     bg = "white" if not white else "black"
     fg = "white" if white else "black"
     for label in labels:
-        labels[label].configure(bg=bg, fg=fg)
+        if "temp" not in label:
+            labels[label].configure(fg=fg)
+        labels[label].configure(bg=bg)
+    canvas.configure(bg=bg)
     root.configure(bg=bg)
 
 
