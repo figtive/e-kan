@@ -1,5 +1,6 @@
 import datetime
 import os
+import random
 import signal
 import sys
 import time
@@ -73,27 +74,28 @@ def sensor_loop():
     text_vars["ap_client"].set(client_count)
 
     text_vars["water_temp"].set("%.1f" % water_temperature_value + " °C")
-    label_color(labels["water_temp"], water_temperature_value, 30, 24)
+    label_color(labels["water_temp"], water_temperature_value, 30, 24, light_value)
 
     set_theme(light_value)
     set_light(light_value)
 
     text_vars["ambient_temp"].set("%.1f" % ambient_temperature_value + " °C")
-    label_color(labels["ambient_temp"], ambient_temperature_value, 30, 24)
+    label_color(labels["ambient_temp"], ambient_temperature_value, 30, 24, light_value)
 
     text_vars["ambient_hum"].set("%.1f" % ambient_humidity_value + " hum")
-    label_color(labels["ambient_temp"], ambient_humidity_value, 30, 24)
+    label_color(labels["ambient_temp"], ambient_humidity_value, 30, 24, light_value)
 
     root.after(500, sensor_loop)
 
 
-def label_color(label, value, upper, lower):
+def label_color(label, value, upper, lower, white):
+    fg = "white" if white else "black"
     if value >= upper:
         label.configure(fg="orange")
     elif value <= lower:
         label.configure(fg="cyan")
     else:
-        label.configure(fg="white")
+        label.configure(fg=fg)
 
 
 def get_ap_client_count():
@@ -109,7 +111,7 @@ def get_ambient_temperature():
     # value = dht.read(dht.DHT11, 4)[1]
     # print(f"ambient temp {value}")
     # return value if value else 0
-    return 20
+    return round(random.uniform(20.0, 35.0))
 
 
 def get_ambient_humidity():
@@ -157,8 +159,8 @@ def setup_lcd(root):
     root.bind("<1>", root.quit())
     root.configure(bg="black")
 
-    canvas = tk.Canvas(root, width=LCD_WIDTH, height=LCD_HEIGHT, bg="black")
-    canvas.place(x=0, y=0)
+    canvas = tk.Canvas(root, width=LCD_WIDTH, height=LCD_HEIGHT, bg="red")
+    canvas.place(x=-1, y=-1)
 
     labels["title"] = Label(root, fg="white", bg="black", text="E-Kan", font=("Futura", 25, "bold italic"))
     labels["title"].place(x=2, y=0)
