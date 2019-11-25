@@ -1,14 +1,14 @@
 import datetime
 import os
-import random
 import signal
 import sys
 import time
-# import tkinter.font
-# import Adafruit_DHT as dht
-# import RPi.GPIO as GPIO
+import tkinter.font
+import Adafruit_DHT as dht
+import RPi.GPIO as GPIO
 import tkinter as tk
 from tkinter import *
+
 
 WATER_TEMPERATURE_SENSOR_ID = "28-031097791088"
 WATER_TEMPERATURE_SENSOR_PIN = 4
@@ -44,22 +44,21 @@ def main():
 
 
 def setup_gpio():
-    # GPIO.setmode(GPIO.BCM)
-    # GPIO.setup(LIGHT_SENSOR_PIN, GPIO.IN)
-    # GPIO.setup(LIGHT_RELAY_PIN, GPIO.OUT)
-    # GPIO.setup(PUMP_RELAY_PIN, GPIO.OUT)
-    # GPIO.setup(SERVO_PIN, GPIO.OUT)
-    pass
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(LIGHT_SENSOR_PIN, GPIO.IN)
+    GPIO.setup(LIGHT_RELAY_PIN, GPIO.OUT)
+    GPIO.setup(PUMP_RELAY_PIN, GPIO.OUT)
+    GPIO.setup(SERVO_PIN, GPIO.OUT)
 
 
 def setup_servo():
     global servo
 
-    # servo = GPIO.PWM(SERVO_PIN, 50)
-    # servo.start(0) 
-    # servo.ChangeDutyCycle(SERVO_RESTING)
-    # time.sleep(1)
-    # servo.ChangeDutyCycle(0)
+    servo = GPIO.PWM(SERVO_PIN, 50)
+    servo.start(0) 
+    servo.ChangeDutyCycle(SERVO_RESTING)
+    time.sleep(1)
+    servo.ChangeDutyCycle(0)
 
 
 def sensor_loop():
@@ -69,17 +68,17 @@ def sensor_loop():
     ambient_humidity_value = get_ambient_humidity()
     client_count = get_ap_client_count()
 
-    # text_vars["date_time"].set(f"{datetime.datetime.now():%d/%m %H:%M}")
+    text_vars["date_time"].set(f"{datetime.datetime.now():%d/%m %H:%M}")
 
     text_vars["ap_client"].set(client_count)
 
-    text_vars["water_temp"].set("%.1f" % water_temperature_value + " C")
+    text_vars["water_temp"].set("%.1f" % water_temperature_value + " °C")
     label_color(labels["water_temp"], water_temperature_value, 30, 24)
 
     set_theme(light_value)
     set_light(light_value)
 
-    text_vars["ambient_temp"].set("%.1f" % ambient_temperature_value + " C")
+    text_vars["ambient_temp"].set("%.1f" % ambient_temperature_value + " °C")
     label_color(labels["ambient_temp"], ambient_temperature_value, 30, 24)
 
     text_vars["ambient_hum"].set("%.1f" % ambient_humidity_value + " hum")
@@ -98,62 +97,56 @@ def label_color(label, value, upper, lower):
 
 
 def get_ap_client_count():
-    # return os.popen('iw ap0 station dump | grep Station | wc -l').read()
-    return random.randint(0, 5)
+    return os.popen('iw ap0 station dump | grep Station | wc -l').read()
 
 
 def get_water_temperature():
-    # value = os.popen('cat /sys/bus/w1/devices/%s/w1_slave | tail -n1 | awk \'{print $NF}\' | sed s/t=//' % WATER_TEMPERATURE_SENSOR_ID).read()
-    # return float(value) / 1000
-    return round(random.uniform(23.0, 30.0))
+    value = os.popen('cat /sys/bus/w1/devices/%s/w1_slave | tail -n1 | awk \'{print $NF}\' | sed s/t=//' % WATER_TEMPERATURE_SENSOR_ID).read()
+    return float(value) / 1000
 
 
 def get_ambient_temperature():
     # value = dht.read(dht.DHT11, 4)[1]
     # print(f"ambient temp {value}")
     # return value if value else 0
-    return round(random.uniform(23.0, 30.0))
+    return 20
 
 
 def get_ambient_humidity():
     # value = dht.read(dht.DHT11, 4)[0]
     # print(f"ambient hum {value}")
     # return value if value else 0
-    return random.randint(20, 30)
+    return 20
 
 
 def get_light_value():
-    # return GPIO.input(LIGHT_SENSOR_PIN)
-    return random.randint(0, 1)
+    return GPIO.input(LIGHT_SENSOR_PIN)
 
 
 def reboot():
-    pass
-    # os.popen('sudo reboot')
+    os.popen('sudo reboot')
 
 
 def toggle_pump():
     global pump_state
-    # pump_state = not pump_state
-    # GPIO.output(PUMP_RELAY_PIN, pump_state)
+    pump_state = not pump_state
+    GPIO.output(PUMP_RELAY_PIN, pump_state)
 
 
 def set_light(value):
-    pass
-    # GPIO.output(LIGHT_RELAY_PIN, 0 if value else 1)
+    GPIO.output(LIGHT_RELAY_PIN, 0 if value else 1)
 
 
 def feed():
-    # servo.ChangeDutyCycle(SERVO_MAX)
-    # time.sleep(1.3)
-    # servo.ChangeDutyCycle(SERVO_RESTING)
-    # time.sleep(2)
-    # servo.ChangeDutyCycle(0)
-    pass
+    servo.ChangeDutyCycle(SERVO_MAX)
+    time.sleep(1.3)
+    servo.ChangeDutyCycle(SERVO_RESTING)
+    time.sleep(2)
+    servo.ChangeDutyCycle(0)
 
 
 def signal_handler(signal, frame):
-    # GPIO.cleanup()
+    GPIO.cleanup()
     sys.exit(0)
 
 
@@ -171,7 +164,7 @@ def setup_lcd(root):
     labels["title"].place(x=2, y=0)
 
     text_vars["water_temp"] = StringVar()
-    text_vars["water_temp"].set("00.0 C")
+    text_vars["water_temp"].set("00.0 °C")
     labels["water_temp"] = Label(root, fg="white", bg="black", textvariable=text_vars["water_temp"], font=("Helvetica", 20))
     labels["water_temp"].place(x=2, y=50)
 
@@ -197,7 +190,7 @@ def setup_lcd(root):
     labels["ambient_hum"].place(x=2, y=200)
 
     text_vars["ambient_temp"] = StringVar()
-    text_vars["ambient_temp"].set("00.0 C")
+    text_vars["ambient_temp"].set("00.0 °C")
     labels["ambient_temp"] = Label(root, fg="white", bg="black", textvariable=text_vars["ambient_temp"], font=("Helvetica", 20))
     labels["ambient_temp"].place(x=2, y=230)
 
