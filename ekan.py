@@ -83,7 +83,7 @@ def sensor_loop():
     label_color(labels["ambient_temp"], ambient_temperature_value, 30, 24, light_value)
 
     text_vars["ambient_hum"].set("%.1f" % ambient_humidity_value + " hum")
-    label_color(labels["ambient_temp"], ambient_humidity_value, 30, 24, light_value)
+    label_color(labels["ambient_hum"], ambient_humidity_value, 30, 24, light_value)
 
     root.after(500, sensor_loop)
 
@@ -111,14 +111,14 @@ def get_ambient_temperature():
     # value = dht.read(dht.DHT11, 4)[1]
     # print(f"ambient temp {value}")
     # return value if value else 0
-    return round(random.uniform(20.0, 35.0))
+    return round(random.uniform(20.0, 35.0), 2)
 
 
 def get_ambient_humidity():
     # value = dht.read(dht.DHT11, 4)[0]
     # print(f"ambient hum {value}")
     # return value if value else 0
-    return 20
+    return round(random.uniform(20.0, 35.0), 2)
 
 
 def get_light_value():
