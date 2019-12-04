@@ -9,6 +9,7 @@ import tkinter.font
 import Adafruit_DHT as dht
 import RPi.GPIO as GPIO
 import tkinter as tk
+from threading import Thread
 from tkinter import *
 
 WATER_TEMPERATURE_SENSOR_ID = "28-031097791088"
@@ -27,7 +28,8 @@ LED_LIGHT = 6
 LED_TEMP = 13
 LED_FEED = 19
 LED_AP = 26
-BUTTON_NAME = ["light", "pump", "feed"]
+AMBIENT_STATE_DELAY = 10
+BUTTON_NAME = ["light", "pump", "feed", "reboot"]
 
 class Ekan(tk.Tk):
     def __init__(self, loop, interval=1/120):
@@ -36,7 +38,7 @@ class Ekan(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.tasks = []
         self.tasks.append(loop.create_task(self.updater(interval)))
-        self.tasks.append(loop.create_task(self.sensor_loop(5)))
+        self.tasks.append(loop.create_task(self.sensor_loop(0.2)))
 
         self.canvas = None
         self.servo = None
@@ -47,12 +49,27 @@ class Ekan(tk.Tk):
         self.buttons = {}
         self.button_texts = {}
 
-        self.pump_state = False
+        self.pump_state = True
         self.light_mode = 0
+        self.is_feeding = False
+        self.ambient_state = False
+        self.ambient_counter = 0
+        self.next_feed = datetime.datetime.now() + datetime.timedelta(hours=9)
+
+        self.sensor_values = {
+            "light_value": 0,
+            "water_temperature_value": .0,
+            "ambient_temperature_value": .0,
+            "ambient_humidity_value": .0,
+            "client_count": 0
+        }
         
         self.setup_gpio()
         self.setup_lcd()
         self.setup_servo()
+
+        self.sensor_process = Thread(target=self.read_sensors)
+        self.feed_process = Thread(target=self.feed_callback)
 
 
     def setup_gpio(self):
@@ -68,6 +85,7 @@ class Ekan(tk.Tk):
         GPIO.setup(LED_TEMP, GPIO.OUT)
         GPIO.setup(LED_AP, GPIO.OUT)
         GPIO.output(LED_PUMP, 1)
+        GPIO.add_event_detect(LIGHT_SENSOR_PIN, GPIO.BOTH, callback=self.light_swap, bouncetime=250) 
 
     def setup_servo(self):
         self.servo = GPIO.PWM(SERVO_PIN, 50)
@@ -76,31 +94,22 @@ class Ekan(tk.Tk):
         time.sleep(1)
         self.servo.ChangeDutyCycle(0)
 
+    def light_swap(self, chan):
+        time.sleep(0.225)
+        self.sensor_values["light_value"] = self.get_light_value()
+        if self.light_mode == 0:
+            self.set_light(self.sensor_values["light_value"])
+
+    def read_sensors(self):
+        self.sensor_values["water_temperature_value"] = self.get_water_temperature()
+        self.sensor_values["ambient_temperature_value"] = self.get_ambient_temperature()
+        self.sensor_values["ambient_humidity_value"] = self.get_ambient_humidity()
+        self.sensor_values["client_count"] = self.get_ap_client_count()
+
     async def sensor_loop(self, interval):
         while True:
-            light_value = self.get_light_value()
-            water_temperature_value = self.get_water_temperature()
-            ambient_temperature_value = self.get_ambient_temperature()
-            ambient_humidity_value = self.get_ambient_humidity()
-            client_count = self.get_ap_client_count()
-
-            self.set_theme(light_value)
-            self.set_light()
-
-            self.text_vars["water_temp"].set("%2.1f" % water_temperature_value + " °C")
-            self.label_color(self.labels["water_temp"], water_temperature_value, 30, 24, light_value)
-
-            self.text_vars["ambient_temp"].set("%2.1f" % ambient_temperature_value + " °C")
-            self.label_color(self.labels["ambient_temp"], ambient_temperature_value, 30, 24, light_value)
-
-            self.text_vars["time"].set(f"{datetime.datetime.now():%H:%M}")
-            self.text_vars["day"].set(f"{datetime.datetime.now():%a}")
-            self.text_vars["date"].set(f"{datetime.datetime.now():%d/%m}")
-
-            self.text_vars["ambient_hum"].set("%2.1f" % ambient_humidity_value + " %")
-            self.label_color(self.labels["ambient_hum"], ambient_humidity_value, 100, 0, light_value)
-            self.text_vars["ap_client"].set(client_count)
-
+            self.sensor_process = Thread(target=self.read_sensors)
+            self.sensor_process.start()
             await asyncio.sleep(interval)
 
     def label_color(self, label, value, upper, lower, white):
@@ -149,7 +158,7 @@ class Ekan(tk.Tk):
         return GPIO.input(LIGHT_SENSOR_PIN)
 
 
-    def reboot(self):
+    def reboot(self, event):
         os.popen('sudo reboot')
 
 
@@ -169,21 +178,21 @@ class Ekan(tk.Tk):
         else:
             self.light_mode = 0
             self.canvas.itemconfigure(self.button_texts["light"], text="Light Auto")
-        self.set_light()
+        self.set_light(self.get_light_value())
 
-    def set_light(self):
-        light = self.get_light_value()
+    def set_light(self, light):
         if self.light_mode == 0:
             GPIO.output(LIGHT_RELAY_PIN, 0 if light else 1)
             GPIO.output(LED_LIGHT, 1 if light else 0)
         elif self.light_mode == 1:
             GPIO.output(LIGHT_RELAY_PIN, 0)
             GPIO.output(LED_LIGHT, 1)
-        else:
+        elif self.light_mode == 2:
             GPIO.output(LIGHT_RELAY_PIN, 1)
             GPIO.output(LED_LIGHT, 0)
 
-    def feed(self, event):
+    def feed_callback(self):
+        self.is_feeding = True
         GPIO.output(LED_FEED, 1)
         self.servo.ChangeDutyCycle(SERVO_MAX)
         time.sleep(2)
@@ -191,7 +200,12 @@ class Ekan(tk.Tk):
         GPIO.output(LED_FEED, 0)
         time.sleep(2)
         self.servo.ChangeDutyCycle(0)
+        self.is_feeding = False
 
+    def feed(self, event):
+        if not self.is_feeding:
+            self.feed_process = Thread(target=self.feed_callback)
+            self.feed_process.start()
 
     def set_theme(self, white):
         bg = "white" if not white else "black"
@@ -203,7 +217,8 @@ class Ekan(tk.Tk):
             self.canvas.itemconfigure(self.lines[i], fill=fg)
         for button in BUTTON_NAME:
             self.canvas.itemconfigure(self.buttons[button], fill=bg)
-            self.canvas.itemconfigure(self.button_texts[button], fill=fg)
+            if button != "reboot":
+                self.canvas.itemconfigure(self.button_texts[button], fill=fg)
         self.canvas.configure(bg=bg)
         self.configure(bg=bg)
 
@@ -221,10 +236,10 @@ class Ekan(tk.Tk):
         self.text_vars["water_temp"] = StringVar()
         self.text_vars["water_temp"].set("00.0 °C")
         self.labels["water_temp"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["water_temp"], font=("Helvetica", 20))
-        self.labels["ambient_temp_desc"] = Label(self, fg="white", bg="black", text="Ambient", font=("Helvetica", 11))
-        self.text_vars["ambient_temp"] = StringVar()
-        self.text_vars["ambient_temp"].set("00.0 °C")
-        self.labels["ambient_temp"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ambient_temp"], font=("Helvetica", 20))
+        self.labels["ambient_desc"] = Label(self, fg="white", bg="black", text="Ambient", font=("Helvetica", 11))
+        self.text_vars["ambient"] = StringVar()
+        self.text_vars["ambient"].set("00.0 °C")
+        self.labels["ambient"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ambient"], font=("Helvetica", 20))
 
         self.text_vars["time"] = StringVar()
         self.text_vars["time"].set("00:00")
@@ -236,24 +251,26 @@ class Ekan(tk.Tk):
         self.text_vars["date"].set("dd/mm")
         self.labels["date"] = Label(self, textvariable=self.text_vars["date"], fg="white", bg="black", font=("helvetica", 12))
 
-        self.labels["ambient_hum_desc"] = Label(self, fg="white", bg="black", text="Humidity", font=("Helvetica", 11))
-        self.text_vars["ambient_hum"] = StringVar()
-        self.text_vars["ambient_hum"].set("00.0 %")
-        self.labels["ambient_hum"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ambient_hum"], font=("Helvetica", 20))
+        self.labels["feed_desc"] = Label(self, fg="white", bg="black", text="Feed in", font=("Helvetica", 11))
+        self.text_vars["feed"] = StringVar()
+        self.text_vars["feed"].set("00:00")
+        self.labels["feed"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["feed"], font=("Helvetica", 20))
         self.labels["ap_client_desc"] = Label(self, fg="white", bg="black", text="AP Client", font=("Helvetica", 11))
         self.text_vars["ap_client"] = StringVar()
         self.text_vars["ap_client"].set("0")
         self.labels["ap_client"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ap_client"], font=("Helvetica", 20))
 
         self.labels["title"].place(x=60, y=0)
+        self.buttons["reboot"] = self.canvas.create_rectangle(190, 0, 240, 44, fill="black", tags="reboot_button", outline="")
+        self.canvas.tag_bind("reboot_button", "<Button-1>", self.reboot)
 
         self.lines.append(self.canvas.create_line(0, 45, 240, 45, fill="white"))
 
         self.labels["water_temp_desc"].place(x=25, y=50)
         self.labels["water_temp"].place(x=10, y=68)
         self.lines.append(self.canvas.create_line(120, 45, 120, 105, fill="white"))
-        self.labels["ambient_temp_desc"].place(x=145, y=50)
-        self.labels["ambient_temp"].place(x=135, y=68)
+        self.labels["ambient_desc"].place(x=145, y=50)
+        self.labels["ambient"].place(x=135, y=68)
 
         self.lines.append(self.canvas.create_line(0, 105, 240, 105, fill="white"))
 
@@ -263,8 +280,8 @@ class Ekan(tk.Tk):
 
         self.lines.append(self.canvas.create_line(0, 163, 240, 163, fill="white"))        
 
-        self.labels["ambient_hum_desc"].place(x=18, y=167)
-        self.labels["ambient_hum"].place(x=15, y=185)
+        self.labels["feed_desc"].place(x=25, y=167)
+        self.labels["feed"].place(x=15, y=185)
         self.lines.append(self.canvas.create_line(120, 163, 120, 225, fill="white"))
         self.labels["ap_client_desc"].place(x=145, y=167)
         self.labels["ap_client"].place(x=170, y=185)
@@ -272,7 +289,7 @@ class Ekan(tk.Tk):
         self.lines.append(self.canvas.create_line(0, 225, 240, 225, fill="white"))
 
         self.buttons["feed"] = self.canvas.create_rectangle(0, 226, 240, 275, fill="black", tags="feed_button", outline="")
-        self.button_texts["feed"] = self.canvas.create_text(120, 250, text="Feed", font=("Helvetica", 14), fill="white", tags="feed_text")
+        self.button_texts["feed"] = self.canvas.create_text(120, 250, text="Feed", font=("Futura", 25, "italic"), fill="white", tags="feed_text")
         self.canvas.tag_bind("feed_button", "<Button-1>", self.feed)
         self.canvas.tag_bind("feed_text", "<Button-1>", self.feed)
 
@@ -290,6 +307,34 @@ class Ekan(tk.Tk):
 
     async def updater(self, interval):
         while True:
+            self.set_theme(self.sensor_values["light_value"])
+
+            self.text_vars["water_temp"].set("%2.1f" % self.sensor_values["water_temperature_value"] + " °C")
+            self.label_color(self.labels["water_temp"], self.sensor_values["water_temperature_value"], 30, 24, self.sensor_values["light_value"])
+
+            value = self.sensor_values["ambient_temperature_value"] if self.ambient_state else self.sensor_values["ambient_humidity_value"]
+            unit = " °C" if self.ambient_state else " %"
+            ambient_text = "%2.1f" % value + unit
+            self.text_vars["ambient"].set(ambient_text)
+            self.label_color(self.labels["ambient"], value, 30, 24, self.sensor_values["light_value"])
+            if self.ambient_counter > AMBIENT_STATE_DELAY:
+                self.ambient_state = not self.ambient_state
+                self.ambient_counter = 0
+            else:
+                self.ambient_counter += 1
+
+            self.text_vars["time"].set(f"{datetime.datetime.now():%H:%M}")
+            self.text_vars["day"].set(f"{datetime.datetime.now():%a}")
+            self.text_vars["date"].set(f"{datetime.datetime.now():%d/%m}")
+
+            temp = self.next_feed - datetime.datetime.now()
+            self.text_vars["feed"].set(str(temp)[0:-10])
+            self.text_vars["ap_client"].set(self.sensor_values["client_count"])
+
+            if datetime.datetime.now() > self.next_feed:
+                self.next_feed = datetime.datetime.now() + datetime.timedelta(hours=9)
+                self.feed(None)
+
             self.update()
             await asyncio.sleep(interval)
 
@@ -301,7 +346,6 @@ class Ekan(tk.Tk):
 
 def signal_handler(signal, frame):
     GPIO.cleanup()
-    # loop.close()
     sys.exit(0)
 
 if __name__ == "__main__":
