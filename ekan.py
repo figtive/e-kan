@@ -31,8 +31,9 @@ LED_AP = 26
 AMBIENT_STATE_DELAY = 10
 BUTTON_NAME = ["light", "pump", "feed", "reboot"]
 
+
 class Ekan(tk.Tk):
-    def __init__(self, loop, interval=1/120):
+    def __init__(self, loop, interval=1 / 120):
         super().__init__()
         self.loop = loop
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -63,14 +64,13 @@ class Ekan(tk.Tk):
             "ambient_humidity_value": .0,
             "client_count": 0
         }
-        
+
         self.setup_gpio()
         self.setup_lcd()
         self.setup_servo()
 
         self.sensor_process = Thread(target=self.read_sensors)
         self.feed_process = Thread(target=self.feed_callback)
-
 
     def setup_gpio(self):
         GPIO.setmode(GPIO.BCM)
@@ -85,11 +85,11 @@ class Ekan(tk.Tk):
         GPIO.setup(LED_TEMP, GPIO.OUT)
         GPIO.setup(LED_AP, GPIO.OUT)
         GPIO.output(LED_PUMP, 1)
-        GPIO.add_event_detect(LIGHT_SENSOR_PIN, GPIO.BOTH, callback=self.light_swap, bouncetime=250) 
+        GPIO.add_event_detect(LIGHT_SENSOR_PIN, GPIO.BOTH, callback=self.light_swap, bouncetime=250)
 
     def setup_servo(self):
         self.servo = GPIO.PWM(SERVO_PIN, 50)
-        self.servo.start(0) 
+        self.servo.start(0)
         self.servo.ChangeDutyCycle(SERVO_RESTING)
         time.sleep(1)
         self.servo.ChangeDutyCycle(0)
@@ -121,52 +121,43 @@ class Ekan(tk.Tk):
         else:
             label.configure(fg=fg)
 
-
     def get_ap_client_count(self):
-        count =  os.popen('iw ap0 station dump | grep Station | wc -l').read()
+        count = os.popen('iw ap0 station dump | grep Station | wc -l').read()
         if int(count) > 0:
             GPIO.output(LED_AP, 1)
         else:
             GPIO.output(LED_AP, 0)
         return int(count)
 
-
     def get_water_temperature(self):
-        value = float(os.popen('cat /sys/bus/w1/devices/%s/w1_slave | tail -n1 | awk \'{print $NF}\' | sed s/t=//' % WATER_TEMPERATURE_SENSOR_ID).read())
-        if value / 1000 < 25 or value/1000 > 29:
+        value = float(os.popen(
+            'cat /sys/bus/w1/devices/%s/w1_slave | tail -n1 | awk \'{print $NF}\' | sed s/t=//' % WATER_TEMPERATURE_SENSOR_ID).read())
+        if value / 1000 < 25 or value / 1000 > 29:
             GPIO.output(LED_TEMP, 1)
         else:
             GPIO.output(LED_TEMP, 0)
         return value / 1000
 
-
     def get_ambient_temperature(self):
-        # value = dht.read(dht.DHT11, 4)[1]
-        # print(f"ambient temp {value}")
-        # return value if value else 0
-        return 28
-
+        value = dht.read(dht.DHT11, 4)[1]
+        print(f"ambient temp {value}")
+        return value if value else 0
 
     def get_ambient_humidity(self):
-        # value = dht.read(dht.DHT11, 4)[0]
-        # print(f"ambient hum {value}")
-        # return value if value else 0
-        return 15
-
+        value = dht.read(dht.DHT11, 4)[0]
+        print(f"ambient hum {value}")
+        return value if value else 0
 
     def get_light_value(self):
         return GPIO.input(LIGHT_SENSOR_PIN)
 
-
     def reboot(self, event):
         os.popen('sudo reboot')
-
 
     def toggle_pump(self, event):
         self.pump_state = not self.pump_state
         GPIO.output(LED_PUMP, self.pump_state)
         GPIO.output(PUMP_RELAY_PIN, not self.pump_state)
-
 
     def toggle_light_mode(self, event=None):
         if self.light_mode == 0:
@@ -235,33 +226,41 @@ class Ekan(tk.Tk):
         self.labels["water_temp_desc"] = Label(self, fg="white", bg="black", text="Water", font=("Helvetica", 11))
         self.text_vars["water_temp"] = StringVar()
         self.text_vars["water_temp"].set("00.0 °C")
-        self.labels["water_temp"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["water_temp"], font=("Helvetica", 20))
+        self.labels["water_temp"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["water_temp"],
+                                          font=("Helvetica", 20))
         self.labels["ambient_desc"] = Label(self, fg="white", bg="black", text="Ambient", font=("Helvetica", 11))
         self.text_vars["ambient"] = StringVar()
         self.text_vars["ambient"].set("00.0 °C")
-        self.labels["ambient"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ambient"], font=("Helvetica", 20))
+        self.labels["ambient"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ambient"],
+                                       font=("Helvetica", 20))
 
         self.text_vars["time"] = StringVar()
         self.text_vars["time"].set("00:00")
-        self.labels["time"] = Label(self, textvariable=self.text_vars["time"], fg="white", bg="black", font=("helvetica", 30))
+        self.labels["time"] = Label(self, textvariable=self.text_vars["time"], fg="white", bg="black",
+                                    font=("helvetica", 30))
         self.text_vars["day"] = StringVar()
         self.text_vars["day"].set("Mon")
-        self.labels["day"] = Label(self, textvariable=self.text_vars["day"], fg="white", bg="black", font=("helvetica", 12))
+        self.labels["day"] = Label(self, textvariable=self.text_vars["day"], fg="white", bg="black",
+                                   font=("helvetica", 12))
         self.text_vars["date"] = StringVar()
         self.text_vars["date"].set("dd/mm")
-        self.labels["date"] = Label(self, textvariable=self.text_vars["date"], fg="white", bg="black", font=("helvetica", 12))
+        self.labels["date"] = Label(self, textvariable=self.text_vars["date"], fg="white", bg="black",
+                                    font=("helvetica", 12))
 
         self.labels["feed_desc"] = Label(self, fg="white", bg="black", text="Feed in", font=("Helvetica", 11))
         self.text_vars["feed"] = StringVar()
         self.text_vars["feed"].set("00:00")
-        self.labels["feed"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["feed"], font=("Helvetica", 20))
+        self.labels["feed"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["feed"],
+                                    font=("Helvetica", 20))
         self.labels["ap_client_desc"] = Label(self, fg="white", bg="black", text="AP Client", font=("Helvetica", 11))
         self.text_vars["ap_client"] = StringVar()
         self.text_vars["ap_client"].set("0")
-        self.labels["ap_client"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ap_client"], font=("Helvetica", 20))
+        self.labels["ap_client"] = Label(self, fg="white", bg="black", textvariable=self.text_vars["ap_client"],
+                                         font=("Helvetica", 20))
 
         self.labels["title"].place(x=60, y=0)
-        self.buttons["reboot"] = self.canvas.create_rectangle(190, 0, 240, 44, fill="black", tags="reboot_button", outline="")
+        self.buttons["reboot"] = self.canvas.create_rectangle(190, 0, 240, 44, fill="black", tags="reboot_button",
+                                                              outline="")
         self.canvas.tag_bind("reboot_button", "<Button-1>", self.reboot)
 
         self.lines.append(self.canvas.create_line(0, 45, 240, 45, fill="white"))
@@ -278,7 +277,7 @@ class Ekan(tk.Tk):
         self.labels["day"].place(x=150, y=113)
         self.labels["date"].place(x=150, y=133)
 
-        self.lines.append(self.canvas.create_line(0, 163, 240, 163, fill="white"))        
+        self.lines.append(self.canvas.create_line(0, 163, 240, 163, fill="white"))
 
         self.labels["feed_desc"].place(x=25, y=167)
         self.labels["feed"].place(x=15, y=185)
@@ -288,20 +287,26 @@ class Ekan(tk.Tk):
 
         self.lines.append(self.canvas.create_line(0, 225, 240, 225, fill="white"))
 
-        self.buttons["feed"] = self.canvas.create_rectangle(0, 226, 240, 275, fill="black", tags="feed_button", outline="")
-        self.button_texts["feed"] = self.canvas.create_text(120, 250, text="Feed", font=("Futura", 25, "italic"), fill="white", tags="feed_text")
+        self.buttons["feed"] = self.canvas.create_rectangle(0, 226, 240, 275, fill="black", tags="feed_button",
+                                                            outline="")
+        self.button_texts["feed"] = self.canvas.create_text(120, 250, text="Feed", font=("Futura", 25, "italic"),
+                                                            fill="white", tags="feed_text")
         self.canvas.tag_bind("feed_button", "<Button-1>", self.feed)
         self.canvas.tag_bind("feed_text", "<Button-1>", self.feed)
 
         self.lines.append(self.canvas.create_line(0, 275, 240, 275, fill="white"))
 
-        self.buttons["pump"] = self.canvas.create_rectangle(0, 276, 119, 320, fill="black", tags="pump_button", outline="")
-        self.button_texts["pump"] = self.canvas.create_text(55, 300, text="Pump", font=("Helvetica", 14), fill="white", tags="pump_text")
+        self.buttons["pump"] = self.canvas.create_rectangle(0, 276, 119, 320, fill="black", tags="pump_button",
+                                                            outline="")
+        self.button_texts["pump"] = self.canvas.create_text(55, 300, text="Pump", font=("Helvetica", 14), fill="white",
+                                                            tags="pump_text")
         self.canvas.tag_bind("pump_button", "<Button-1>", self.toggle_pump)
         self.canvas.tag_bind("pump_text", "<Button-1>", self.toggle_pump)
         self.lines.append(self.canvas.create_line(120, 275, 120, 320, fill="white"))
-        self.buttons["light"] = self.canvas.create_rectangle(121, 276, 240, 320, fill="black", tags="light_button", outline="")
-        self.button_texts["light"] = self.canvas.create_text(180, 300, text="Light Auto", font=("Helvetica", 14), fill="white", tags="light_text")
+        self.buttons["light"] = self.canvas.create_rectangle(121, 276, 240, 320, fill="black", tags="light_button",
+                                                             outline="")
+        self.button_texts["light"] = self.canvas.create_text(180, 300, text="Light Auto", font=("Helvetica", 14),
+                                                             fill="white", tags="light_text")
         self.canvas.tag_bind("light_button", "<Button-1>", self.toggle_light_mode)
         self.canvas.tag_bind("light_text", "<Button-1>", self.toggle_light_mode)
 
@@ -310,9 +315,11 @@ class Ekan(tk.Tk):
             self.set_theme(self.sensor_values["light_value"])
 
             self.text_vars["water_temp"].set("%2.1f" % self.sensor_values["water_temperature_value"] + " °C")
-            self.label_color(self.labels["water_temp"], self.sensor_values["water_temperature_value"], 30, 24, self.sensor_values["light_value"])
+            self.label_color(self.labels["water_temp"], self.sensor_values["water_temperature_value"], 30, 24,
+                             self.sensor_values["light_value"])
 
-            value = self.sensor_values["ambient_temperature_value"] if self.ambient_state else self.sensor_values["ambient_humidity_value"]
+            value = self.sensor_values["ambient_temperature_value"] if self.ambient_state else self.sensor_values[
+                "ambient_humidity_value"]
             unit = " °C" if self.ambient_state else " %"
             ambient_text = "%2.1f" % value + unit
             self.text_vars["ambient"].set(ambient_text)
@@ -344,9 +351,11 @@ class Ekan(tk.Tk):
         self.loop.stop()
         self.destroy()
 
+
 def signal_handler(signal, frame):
     GPIO.cleanup()
     sys.exit(0)
+
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
